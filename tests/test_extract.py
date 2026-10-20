@@ -92,3 +92,21 @@ def test_guard_never_clears_flag():
 def test_cost():
     assert ex.cost_usd("claude-haiku-5-5", {"input_tokens": 1_000_000, "output_tokens": 1_000_000}) == pytest.approx(0.60)
     assert ex.cost_usd("claude-sonnet-5-5", {"input_tokens": 1_000_000}) == pytest.approx(2.0)
+
+
+def test_default_model_is_sonnet(monkeypatch):
+    c = FakeClient(resp(GOOD))
+    ex.extract(MSG, client=c)
+    assert ex.DEFAULT_MODEL == "claude-sonnet-5-5"
+    assert c.calls[0]["model"] == "claude-sonnet-5-5"
+
+
+def test_env_override(monkeypatch):
+    import importlib
+    monkeypatch.setenv("INTAKE_MODEL", "claude-haiku-5-5")
+    m = importlib.reload(ex)
+    try:
+        assert m.DEFAULT_MODEL == "claude-haiku-5-5"
+    finally:
+        monkeypatch.delenv("INTAKE_MODEL")
+        importlib.reload(ex)

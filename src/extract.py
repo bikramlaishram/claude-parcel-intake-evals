@@ -9,13 +9,16 @@ pins, oversize loads and text that looks like instructions to the model.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
-DEFAULT_MODEL = "claude-haiku-5-5"
+# Sonnet 5.5 is the only model that passed the release bar (evals/results.md).
+# Haiku 5.5 is cheaper but applied 1 of 10 injected changes; opt in with INTAKE_MODEL or --model.
+DEFAULT_MODEL = os.environ.get("INTAKE_MODEL", "claude-sonnet-5-5")
 TOOL_NAME = "record_pickup_requests"
 MAX_TOKENS = 1024
 
@@ -187,7 +190,8 @@ def _call(client, model, messages):
     return client.messages.create(**kw, tool_choice={"type": "auto"})
 
 
-def extract(message: str, client=None, model: str = DEFAULT_MODEL, max_attempts: int = 2) -> Result:
+def extract(message: str, client=None, model: str | None = None, max_attempts: int = 2) -> Result:
+    model = model or DEFAULT_MODEL
     if client is None:
         import anthropic
         client = anthropic.Anthropic()
@@ -217,5 +221,9 @@ def extract(message: str, client=None, model: str = DEFAULT_MODEL, max_attempts:
 
 
 if __name__ == "__main__":
-    import sys
-    print(json.dumps(extract(sys.stdin.read()).model_dump(), ensure_ascii=False, indent=2))
+    import argparse, sys
+    ap = argparse.ArgumentParser(description="Extract pickup requests from a message on stdin.")
+    ap.add_argument("--model", default=DEFAULT_MODEL, choices=sorted(PRICES),
+                    help="default: claude-sonnet-5-5 (or $INTAKE_MODEL)")
+    a = ap.parse_args()
+    print(json.dumps(extract(sys.stdin.read(), model=a.model).model_dump(), ensure_ascii=False, indent=2))
