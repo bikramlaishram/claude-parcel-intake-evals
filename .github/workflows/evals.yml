@@ -1,0 +1,43 @@
+name: Evals
+
+# Manual only: calls the Anthropic API (about $0.50 per full run). Needs the
+# ANTHROPIC_API_KEY repository secret.
+on:
+  workflow_dispatch:
+    inputs:
+      systems:
+        description: "Comma-separated: rules, haiku, sonnet"
+        default: "rules,haiku,sonnet"
+      limit:
+        description: "Only run the first N cases (blank = all)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SYSTEMS: ${{ inputs.systems }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          test -n "$ANTHROPIC_API_KEY" || { echo "Set the ANTHROPIC_API_KEY repository secret"; exit 1; }
+          python evals/run_evals.py --systems "$SYSTEMS" ${LIMIT:+--limit "$LIMIT"}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            evals/results.md
+            evals/results.json
+            evals/outputs/
